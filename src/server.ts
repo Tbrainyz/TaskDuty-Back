@@ -17,6 +17,7 @@ app.use(
     origin: [
       "http://localhost:5173",
       "http://localhost:5174",
+      "https://task-duty-front.vercel.app",
       process.env.FRONTEND_URL || "",
     ].filter(Boolean),
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
