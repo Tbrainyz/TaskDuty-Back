@@ -1,20 +1,18 @@
 import { Request, Response } from "express";
 import Task from "../models/TaskModel";
 
-// CREATE TASK
+// ── CREATE TASK ───────────────────────────────────────────────
 export const createTask = async (req: Request, res: Response): Promise<void> => {
   try {
     const { title, description, dueDate, category } = req.body;
 
     if (!title || !description || !dueDate || !category) {
-      res.status(400).json({
-        success: false,
-        message: "All fields are required",
-      });
+      res.status(400).json({ success: false, message: "All fields are required" });
       return;
     }
 
     const task = await Task.create({
+      user: req.user!._id,   // scoped to logged-in user
       title,
       description,
       dueDate,
@@ -34,18 +32,17 @@ export const createTask = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
-// GET ALL TASKS
+// ── GET ALL TASKS (user-scoped) ───────────────────────────────
 export const getTasks = async (req: Request, res: Response): Promise<void> => {
   try {
     const { category, completed } = req.query;
 
-    const filter: any = {};
+    const filter: Record<string, unknown> = {
+      user: req.user!._id,   // only this user's tasks
+    };
 
     if (category) filter.category = category;
-
-    if (completed !== undefined) {
-      filter.completed = completed === "true";
-    }
+    if (completed !== undefined) filter.completed = completed === "true";
 
     const tasks = await Task.find(filter).sort({ createdAt: -1 });
 
@@ -62,23 +59,23 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-// GET SINGLE TASK
+// ── GET SINGLE TASK ───────────────────────────────────────────
 export const getTaskById = async (req: Request, res: Response): Promise<void> => {
   try {
     const task = await Task.findById(req.params.id);
 
     if (!task) {
-      res.status(404).json({
-        success: false,
-        message: "Task not found",
-      });
+      res.status(404).json({ success: false, message: "Task not found" });
       return;
     }
 
-    res.status(200).json({
-      success: true,
-      data: task,
-    });
+    // Ownership check
+    if (task.user.toString() !== req.user!._id!.toString()) {
+      res.status(403).json({ success: false, message: "Not authorized" });
+      return;
+    }
+
+    res.status(200).json({ success: true, data: task });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -87,26 +84,30 @@ export const getTaskById = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
-// UPDATE TASK
+// ── UPDATE TASK ───────────────────────────────────────────────
 export const updateTask = async (req: Request, res: Response): Promise<void> => {
   try {
-    const task = await Task.findByIdAndUpdate(req.params.id, req.body, {
+    const task = await Task.findById(req.params.id);
+
+    if (!task) {
+      res.status(404).json({ success: false, message: "Task not found" });
+      return;
+    }
+
+    if (task.user.toString() !== req.user!._id!.toString()) {
+      res.status(403).json({ success: false, message: "Not authorized" });
+      return;
+    }
+
+    const updated = await Task.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
     });
 
-    if (!task) {
-      res.status(404).json({
-        success: false,
-        message: "Task not found",
-      });
-      return;
-    }
-
     res.status(200).json({
       success: true,
       message: "Task updated successfully",
-      data: task,
+      data: updated,
     });
   } catch (error) {
     res.status(400).json({
@@ -116,16 +117,18 @@ export const updateTask = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
-// TOGGLE STATUS
+// ── TOGGLE STATUS ─────────────────────────────────────────────
 export const toggleTaskStatus = async (req: Request, res: Response): Promise<void> => {
   try {
     const task = await Task.findById(req.params.id);
 
     if (!task) {
-      res.status(404).json({
-        success: false,
-        message: "Task not found",
-      });
+      res.status(404).json({ success: false, message: "Task not found" });
+      return;
+    }
+
+    if (task.user.toString() !== req.user!._id!.toString()) {
+      res.status(403).json({ success: false, message: "Not authorized" });
       return;
     }
 
@@ -134,7 +137,7 @@ export const toggleTaskStatus = async (req: Request, res: Response): Promise<voi
 
     res.status(200).json({
       success: true,
-      message: "Task status updated successfully",
+      message: "Task status updated",
       data: task,
     });
   } catch (error) {
@@ -145,23 +148,24 @@ export const toggleTaskStatus = async (req: Request, res: Response): Promise<voi
   }
 };
 
-// DELETE TASK
+// ── DELETE TASK ───────────────────────────────────────────────
 export const deleteTask = async (req: Request, res: Response): Promise<void> => {
   try {
-    const task = await Task.findByIdAndDelete(req.params.id);
+    const task = await Task.findById(req.params.id);
 
     if (!task) {
-      res.status(404).json({
-        success: false,
-        message: "Task not found",
-      });
+      res.status(404).json({ success: false, message: "Task not found" });
       return;
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Task deleted successfully",
-    });
+    if (task.user.toString() !== req.user!._id!.toString()) {
+      res.status(403).json({ success: false, message: "Not authorized" });
+      return;
+    }
+
+    await task.deleteOne();
+
+    res.status(200).json({ success: true, message: "Task deleted successfully" });
   } catch (error) {
     res.status(500).json({
       success: false,
