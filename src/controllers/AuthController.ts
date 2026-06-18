@@ -197,3 +197,45 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     });
   }
 };
+
+// ── UPDATE PASSWORD (logged-in user) ─────────────────────────
+export const updatePassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      res.status(400).json({ message: "All fields are required" });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      res.status(400).json({ message: "New passwords do not match" });
+      return;
+    }
+    if (newPassword.length < 6) {
+      res.status(400).json({ message: "Password must be at least 6 characters" });
+      return;
+    }
+
+    const user = await User.findById(req.user!._id).select("+password");
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      res.status(401).json({ message: "Current password is incorrect" });
+      return;
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    res.status(200).json({ message: "Password updated successfully" });
+  } catch (error) {
+    res.status(500).json({
+      message: error instanceof Error ? error.message : "Server Error",
+    });
+  }
+};
