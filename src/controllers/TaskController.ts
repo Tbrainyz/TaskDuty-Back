@@ -29,7 +29,8 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
 
     const filter: Record<string, unknown> = {
       user: req.user!._id,
-      deleted: false,       // ← only active tasks
+      // Include tasks where deleted is false OR field doesn't exist (old tasks)
+      $or: [{ deleted: false }, { deleted: { $exists: false } }],
     };
 
     if (category)           filter.category  = category;
@@ -122,7 +123,7 @@ export const getTrashedTasks = async (req: Request, res: Response): Promise<void
   try {
     const tasks = await Task.find({
       user: req.user!._id,
-      deleted: true,
+      deleted: true,         // only explicitly trashed tasks
     }).sort({ deletedAt: -1 });
 
     res.status(200).json({ success: true, count: tasks.length, data: tasks });
