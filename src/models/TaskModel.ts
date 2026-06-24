@@ -7,6 +7,9 @@ export interface ITask extends Document {
   dueDate: Date;
   category: "Work" | "Personal" | "Urgent";
   completed: boolean;
+  // ── Soft delete ─────────────────────────────────────────────
+  deleted: boolean;
+  deletedAt: Date | null;
 }
 
 const taskSchema = new Schema<ITask>(
@@ -39,6 +42,14 @@ const taskSchema = new Schema<ITask>(
     completed: {
       type: Boolean,
       default: false,
+    },
+    deleted: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
     },
   },
   { timestamps: true }
